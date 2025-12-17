@@ -18,10 +18,13 @@ export interface Employee {
 export interface TreatmentFeeSetting {
   id: string
   treatment_name: string
-  beautician_fee: number
-  nurse_fee: number
-  consultant_fee: number
+  beautician_price: number
+  nurse_price: number
+  consultant_price: number
+  category: string
+  is_active: boolean
   created_at: string
+  updated_at: string
 }
 
 // 操作費用記錄類型
@@ -43,6 +46,8 @@ export async function getTreatmentFeeSettings(): Promise<TreatmentFeeSetting[]> 
   const { data, error } = await supabase
     .from('treatment_fee_settings')
     .select('*')
+    .eq('is_active', true)
+    .order('category')
     .order('treatment_name')
   
   if (error) throw error
@@ -54,12 +59,12 @@ export function getFeeByPosition(treatment: TreatmentFeeSetting, position: strin
   const normalizedPosition = position.toLowerCase()
   
   if (normalizedPosition.includes('護理師') || normalizedPosition.includes('nurse')) {
-    return treatment.nurse_fee
+    return Number(treatment.nurse_price) || 0
   } else if (normalizedPosition.includes('美容師') || normalizedPosition.includes('beautician')) {
-    return treatment.beautician_fee
+    return Number(treatment.beautician_price) || 0
   } else {
     // 其他職位一律以諮詢師計費
-    return treatment.consultant_fee
+    return Number(treatment.consultant_price) || 0
   }
 }
 
