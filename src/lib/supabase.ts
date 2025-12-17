@@ -116,10 +116,17 @@ export async function verifyEmployee(employeeId: string, password: string): Prom
   if (error || !data) return null
   
   // 使用 bcryptjs 在前端驗證密碼
+  // 注意：Supabase 資料庫中密碼欄位名稱是 'password' 而非 'password_hash'
   const bcrypt = await import('bcryptjs')
-  const isValid = await bcrypt.compare(password, data.password_hash)
+  const isValid = await bcrypt.compare(password, data.password)
   
   if (!isValid) return null
   
-  return data as Employee
+  return {
+    id: data.id,
+    employee_id: data.employee_id,
+    name: data.name,
+    position: data.position || '諮詢師',
+    password_hash: data.password
+  } as Employee
 }
