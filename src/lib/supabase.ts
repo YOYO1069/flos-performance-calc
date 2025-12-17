@@ -106,16 +106,11 @@ export async function deleteOperationRecord(id: string): Promise<void> {
 }
 
 // 驗證員工登入
-// 簡化登入：帳號與密碼相同即可登入
-export async function verifyEmployee(employeeId: string, password: string): Promise<Employee | null> {
-  // 驗證帳號與密碼是否相同
+// 簡化登入：只需輸入員工編號即可登入
+export async function verifyEmployee(employeeId: string): Promise<Employee | null> {
   const trimmedId = employeeId.trim()
-  const trimmedPassword = password.trim()
   
-  console.log('Login attempt:', { employeeId: trimmedId, passwordLength: trimmedPassword.length })
-  
-  if (trimmedId !== trimmedPassword) {
-    console.log('Password mismatch')
+  if (!trimmedId) {
     return null
   }
   
@@ -127,17 +122,12 @@ export async function verifyEmployee(employeeId: string, password: string): Prom
       .eq('employee_id', trimmedId)
       .single()
     
-    console.log('Supabase query result:', { data, error })
-    
-    if (error) {
-      console.error('Supabase error:', error)
+    if (error || !data) {
       return null
     }
     
-    if (!data) {
-      console.log('No user found')
-      return null
-    }
+    // 記錄登入時間
+    await recordLoginTime(trimmedId, data.name)
     
     return {
       id: data.id,
@@ -150,4 +140,47 @@ export async function verifyEmployee(employeeId: string, password: string): Prom
     console.error('Login error:', err)
     return null
   }
+}
+
+// 登入記錄類型
+export interface LoginRecord {
+  id: string
+  employee_id: string
+  employee_name: string
+  login_time: string
+}
+
+// 記錄登入時間
+export async function recordLoginTime(employeeId: string, employeeName: string): Promise<void> {
+  try {
+    await supabase
+      .from('login_records')
+      .insert({
+        employee_id: employeeId,
+        employee_name: employeeName,
+        login_time: new Date().toISOString()
+      })
+  } catch (err) {
+    console.error('Failed to record login time:', err)
+  }
+}
+
+// 取得登入記錄（管理員用）
+export async function getLoginRecords(startDate?: string, endDate?: string): Promise<LoginRecord[]> {
+  let query = supabase
+    .from('login_records')
+    .select('*')
+    .order('login_time', { ascending: false })
+    .limit(100)
+  
+  if (startDate) {
+    query = query.gte('login_time', startDate)
+  }
+  if (endDate) {
+    query = query.lte('login_time', endDate)
+  }
+  
+  const { data, error } = await query
+  if (error) throw error
+  return data || []
 }

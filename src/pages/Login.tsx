@@ -8,7 +8,6 @@ interface LoginProps {
 
 export default function Login({ onLogin }: LoginProps) {
   const [employeeId, setEmployeeId] = useState('')
-  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -18,11 +17,11 @@ export default function Login({ onLogin }: LoginProps) {
     setLoading(true)
 
     try {
-      const employee = await verifyEmployee(employeeId, password)
+      const employee = await verifyEmployee(employeeId)
       if (employee) {
         onLogin(employee)
       } else {
-        setError('員工編號或密碼錯誤')
+        setError('員工編號不存在，請確認後再試')
       }
     } catch (err) {
       setError('登入失敗，請稍後再試')
@@ -40,7 +39,7 @@ export default function Login({ onLogin }: LoginProps) {
             <Calculator className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-gray-800">醫美績效計算</h1>
-          <p className="text-gray-500 mt-2">請使用您的員工帳號登入系統</p>
+          <p className="text-gray-500 mt-2">請輸入您的員工編號登入系統</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -54,20 +53,6 @@ export default function Login({ onLogin }: LoginProps) {
               onChange={(e) => setEmployeeId(e.target.value)}
               className="input-field"
               placeholder="請輸入員工編號"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              密碼
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input-field"
-              placeholder="請輸入密碼"
               required
             />
           </div>
