@@ -109,24 +109,45 @@ export async function deleteOperationRecord(id: string): Promise<void> {
 // 簡化登入：帳號與密碼相同即可登入
 export async function verifyEmployee(employeeId: string, password: string): Promise<Employee | null> {
   // 驗證帳號與密碼是否相同
-  if (employeeId !== password) {
+  const trimmedId = employeeId.trim()
+  const trimmedPassword = password.trim()
+  
+  console.log('Login attempt:', { employeeId: trimmedId, passwordLength: trimmedPassword.length })
+  
+  if (trimmedId !== trimmedPassword) {
+    console.log('Password mismatch')
     return null
   }
   
-  // 查詢員工資料
-  const { data, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('employee_id', employeeId)
-    .single()
-  
-  if (error || !data) return null
-  
-  return {
-    id: data.id,
-    employee_id: data.employee_id,
-    name: data.name,
-    position: data.position || '諮詢師',
-    password_hash: ''
-  } as Employee
+  try {
+    // 查詢員工資料
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('employee_id', trimmedId)
+      .single()
+    
+    console.log('Supabase query result:', { data, error })
+    
+    if (error) {
+      console.error('Supabase error:', error)
+      return null
+    }
+    
+    if (!data) {
+      console.log('No user found')
+      return null
+    }
+    
+    return {
+      id: data.id,
+      employee_id: data.employee_id,
+      name: data.name,
+      position: data.position || '諮詢師',
+      password_hash: ''
+    } as Employee
+  } catch (err) {
+    console.error('Login error:', err)
+    return null
+  }
 }
