@@ -32,13 +32,15 @@ export interface OperationFeeRecord {
   id: string
   employee_id: string
   employee_name: string
-  position: string
-  treatment_name: string
+  operation_category: string  // 職位類別
+  operation_item: string      // 療程名稱
   quantity: number
   unit_fee: number
   total_fee: number
   operation_date: string
+  notes?: string
   created_at: string
+  updated_at?: string
 }
 
 // 取得療程費用設定

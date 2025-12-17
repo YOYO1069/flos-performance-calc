@@ -192,8 +192,8 @@ function DailyRecord({ employee }: { employee: Employee }) {
           await addOperationRecord({
             employee_id: employee.employee_id,
             employee_name: employee.name,
-            position: employee.position,
-            treatment_name: treatment.treatment_name,
+            operation_category: getPositionCategory(employee.position),
+            operation_item: treatment.treatment_name,
             quantity,
             unit_fee: unitFee,
             total_fee: unitFee * quantity,
@@ -495,7 +495,7 @@ function MyStats({ employee }: { employee: Employee }) {
                         {record.operation_date}
                       </div>
                     </td>
-                    <td className="py-3 px-2 text-sm font-medium text-gray-800">{record.treatment_name}</td>
+                    <td className="py-3 px-2 text-sm font-medium text-gray-800">{record.operation_item}</td>
                     <td className="py-3 px-2 text-sm text-center text-gray-600">{record.quantity}</td>
                     <td className="py-3 px-2 text-sm text-right font-semibold text-blue-600">
                       NT$ {record.total_fee.toLocaleString()}
