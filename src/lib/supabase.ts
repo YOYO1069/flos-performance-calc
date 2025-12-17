@@ -106,7 +106,14 @@ export async function deleteOperationRecord(id: string): Promise<void> {
 }
 
 // 驗證員工登入
+// 簡化登入：帳號與密碼相同即可登入
 export async function verifyEmployee(employeeId: string, password: string): Promise<Employee | null> {
+  // 驗證帳號與密碼是否相同
+  if (employeeId !== password) {
+    return null
+  }
+  
+  // 查詢員工資料
   const { data, error } = await supabase
     .from('users')
     .select('*')
@@ -115,18 +122,11 @@ export async function verifyEmployee(employeeId: string, password: string): Prom
   
   if (error || !data) return null
   
-  // 使用 bcryptjs 在前端驗證密碼
-  // 注意：Supabase 資料庫中密碼欄位名稱是 'password' 而非 'password_hash'
-  const bcrypt = await import('bcryptjs')
-  const isValid = await bcrypt.compare(password, data.password)
-  
-  if (!isValid) return null
-  
   return {
     id: data.id,
     employee_id: data.employee_id,
     name: data.name,
     position: data.position || '諮詢師',
-    password_hash: data.password
+    password_hash: ''
   } as Employee
 }
