@@ -573,13 +573,13 @@ function TreatmentSettings({ employee }: { employee: Employee }) {
               <tr key={treatment.id} className="border-b hover:bg-gray-50">
                 <td className="py-3 px-4 font-medium text-gray-800">{treatment.treatment_name}</td>
                 <td className={`py-3 px-4 text-right ${positionCategory === '美容師' ? 'font-bold text-blue-600' : 'text-gray-600'}`}>
-                  NT$ {treatment.beautician_fee}
+                  NT$ {treatment.beautician_price}
                 </td>
                 <td className={`py-3 px-4 text-right ${positionCategory === '護理師' ? 'font-bold text-blue-600' : 'text-gray-600'}`}>
-                  NT$ {treatment.nurse_fee}
+                  NT$ {treatment.nurse_price}
                 </td>
                 <td className={`py-3 px-4 text-right ${positionCategory === '諮詢師' ? 'font-bold text-blue-600' : 'text-gray-600'}`}>
-                  NT$ {treatment.consultant_fee}
+                  NT$ {treatment.consultant_price}
                 </td>
               </tr>
             ))}
