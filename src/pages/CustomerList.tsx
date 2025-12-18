@@ -99,9 +99,11 @@ export default function CustomerList({ employee, isAdmin = false }: CustomerList
   const getCustomerExecutionMarks = (customerName: string) => {
     const customerExecutions = executions.filter(e => e.customer_name === customerName)
     return customerExecutions.map(e => ({
+      id: e.id,
       treatment: e.treatment_name,
       executorName: getEmployeeShortName(e.employee_name, e.employee_shortname),
-      isMe: e.employee_id === employee.employee_id
+      isMe: e.employee_id === employee.employee_id,
+      record: e // 保留完整記錄以便編輯
     }))
   }
 
@@ -369,6 +371,32 @@ export default function CustomerList({ employee, isAdmin = false }: CustomerList
                             >
                               {mark.treatment}
                               <span className="font-medium">({mark.executorName})</span>
+                              {/* 編輯按鈕 - 有權限者可見 */}
+                              {canEdit && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleStartEdit(mark.record)
+                                  }}
+                                  className="ml-1 p-0.5 hover:bg-white/50 rounded"
+                                  title="編輯此記錄"
+                                >
+                                  <Edit className="w-3 h-3" />
+                                </button>
+                              )}
+                              {/* 刪除按鈕 - 有權限者或本人可見 */}
+                              {(canEdit || mark.isMe) && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDeleteExecution(mark.id)
+                                  }}
+                                  className="p-0.5 hover:bg-red-200 rounded text-red-500"
+                                  title="刪除此記錄"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              )}
                             </span>
                           ))}
                         </div>
