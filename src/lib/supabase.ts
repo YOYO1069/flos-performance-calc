@@ -538,3 +538,162 @@ export async function setEditPermission(employeeId: string, canEdit: boolean): P
     return false
   }
 }
+
+
+// 取得員工的療程執行記錄（用於我的業績統計）
+export async function getEmployeeExecutionRecords(
+  employeeId: string, 
+  startDate?: string, 
+  endDate?: string
+): Promise<TreatmentExecutionRecord[]> {
+  try {
+    let query = supabase
+      .from('treatment_execution_records')
+      .select('*')
+      .eq('employee_id', employeeId)
+      .order('appointment_date', { ascending: false })
+      .order('appointment_time', { ascending: false })
+    
+    if (startDate) {
+      query = query.gte('appointment_date', startDate)
+    }
+    if (endDate) {
+      query = query.lte('appointment_date', endDate)
+    }
+    
+    const { data, error } = await query
+    
+    if (error) {
+      console.error('查詢執行記錄失敗:', error)
+      return []
+    }
+    
+    return data || []
+  } catch (err) {
+    console.error('取得執行記錄錯誤:', err)
+    return []
+  }
+}
+
+// 取得全體員工的療程執行記錄（用於管理員統計）
+export async function getAllExecutionRecords(
+  startDate?: string, 
+  endDate?: string
+): Promise<TreatmentExecutionRecord[]> {
+  try {
+    let query = supabase
+      .from('treatment_execution_records')
+      .select('*')
+      .order('appointment_date', { ascending: false })
+      .order('appointment_time', { ascending: false })
+    
+    if (startDate) {
+      query = query.gte('appointment_date', startDate)
+    }
+    if (endDate) {
+      query = query.lte('appointment_date', endDate)
+    }
+    
+    const { data, error } = await query
+    
+    if (error) {
+      console.error('查詢全體執行記錄失敗:', error)
+      return []
+    }
+    
+    return data || []
+  } catch (err) {
+    console.error('取得全體執行記錄錯誤:', err)
+    return []
+  }
+}
+
+// 刪除登入記錄（踢出功能）
+export async function deleteLoginRecord(recordId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('login_records')
+      .delete()
+      .eq('id', recordId)
+    
+    if (error) {
+      console.error('刪除登入記錄失敗:', error)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error('刪除登入記錄錯誤:', err)
+    return false
+  }
+}
+
+// 新增員工
+export async function addEmployee(employee: {
+  employee_id: string
+  name: string
+  position: string
+}): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('users')
+      .insert({
+        employee_id: employee.employee_id,
+        name: employee.name,
+        position: employee.position,
+        role: 'user',
+        can_edit_records: false
+      })
+    
+    if (error) {
+      console.error('新增員工失敗:', error)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error('新增員工錯誤:', err)
+    return false
+  }
+}
+
+// 更新員工資料
+export async function updateEmployee(employeeId: string, updates: {
+  name?: string
+  position?: string
+  role?: string
+  can_edit_records?: boolean
+}): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('employee_id', employeeId)
+    
+    if (error) {
+      console.error('更新員工失敗:', error)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error('更新員工錯誤:', err)
+    return false
+  }
+}
+
+// 刪除員工
+export async function deleteEmployee(employeeId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('users')
+      .delete()
+      .eq('employee_id', employeeId)
+    
+    if (error) {
+      console.error('刪除員工失敗:', error)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error('刪除員工錯誤:', err)
+    return false
+  }
+}
