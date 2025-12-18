@@ -6,7 +6,8 @@ import {
 import { 
   type Employee, type TreatmentFeeSetting, type Appointment, type TreatmentExecutionRecord,
   getTreatmentFeeSettings, getFeeByPosition, getDailyAppointments, 
-  getDailyExecutionRecords, addExecutionRecord, deleteExecutionRecord
+  getDailyExecutionRecords, addExecutionRecord, deleteExecutionRecord,
+  updateExecutionRecord, getAllEmployees, setEditPermission
 } from '../lib/supabase'
 
 interface CustomerListProps {
@@ -46,6 +47,17 @@ export default function CustomerList({ employee, isAdmin = false }: CustomerList
   const [message, setMessage] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [showAllRecords, setShowAllRecords] = useState(false) // 管理員查看所有記錄
+  
+  // 編輯功能相關 state
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([])
+  const [editingRecord, setEditingRecord] = useState<TreatmentExecutionRecord | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showPermissionModal, setShowPermissionModal] = useState(false)
+  const [selectedEditEmployee, setSelectedEditEmployee] = useState<string>('')
+  const [selectedEditTreatment, setSelectedEditTreatment] = useState<string>('')
+  
+  // 檢查是否有編輯權限（管理員或被授權者）
+  const canEdit = isAdmin || employee.can_edit_records
 
   useEffect(() => {
     loadData()
@@ -54,14 +66,25 @@ export default function CustomerList({ employee, isAdmin = false }: CustomerList
   const loadData = async () => {
     setLoading(true)
     try {
-      const [appointmentsData, executionsData, treatmentsData] = await Promise.all([
+      const promises: Promise<any>[] = [
         getDailyAppointments(selectedDate),
         getDailyExecutionRecords(selectedDate),
         getTreatmentFeeSettings()
-      ])
-      setAppointments(appointmentsData)
-      setExecutions(executionsData)
-      setTreatments(treatmentsData)
+      ]
+      
+      // 如果有編輯權限，載入員工列表
+      if (canEdit) {
+        promises.push(getAllEmployees())
+      }
+      
+      const results = await Promise.all(promises)
+      setAppointments(results[0])
+      setExecutions(results[1])
+      setTreatments(results[2])
+      
+      if (canEdit && results[3]) {
+        setAllEmployees(results[3])
+      }
     } catch (err) {
       console.error('載入資料失敗:', err)
       setMessage('載入資料失敗')
@@ -135,6 +158,71 @@ export default function CustomerList({ employee, isAdmin = false }: CustomerList
     } catch (err) {
       console.error('刪除失敗:', err)
       setMessage('刪除失敗')
+    }
+  }
+
+  // 開始編輯執行記錄
+  const handleStartEdit = (record: TreatmentExecutionRecord) => {
+    setEditingRecord(record)
+    setSelectedEditEmployee(record.employee_id)
+    setSelectedEditTreatment(record.treatment_name)
+    setShowEditModal(true)
+  }
+
+  // 儲存編輯
+  const handleSaveEdit = async () => {
+    if (!editingRecord || !selectedEditEmployee || !selectedEditTreatment) return
+    
+    setSaving(true)
+    try {
+      const selectedEmp = allEmployees.find(e => e.employee_id === selectedEditEmployee)
+      const selectedTreat = treatments.find(t => t.treatment_name === selectedEditTreatment)
+      
+      if (!selectedEmp || !selectedTreat) {
+        setMessage('請選擇有效的員工和療程')
+        return
+      }
+      
+      const posCategory = getPositionCategory(selectedEmp.position)
+      const unitFee = getFeeByPosition(selectedTreat, selectedEmp.position)
+      
+      const success = await updateExecutionRecord(editingRecord.id, {
+        treatment_name: selectedEditTreatment,
+        employee_id: selectedEditEmployee,
+        employee_name: selectedEmp.name,
+        employee_shortname: selectedEmp.shortname || selectedEmp.name.slice(-1),
+        employee_position: posCategory,
+        unit_fee: unitFee
+      })
+      
+      if (success) {
+        setMessage('更新成功！')
+        setShowEditModal(false)
+        setEditingRecord(null)
+        await loadData()
+      } else {
+        setMessage('更新失敗')
+      }
+    } catch (err) {
+      console.error('更新失敗:', err)
+      setMessage('更新失敗')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // 授權/取消編輯權限
+  const handleTogglePermission = async (targetEmployee: Employee) => {
+    const newPermission = !targetEmployee.can_edit_records
+    const success = await setEditPermission(targetEmployee.employee_id, newPermission)
+    
+    if (success) {
+      setMessage(newPermission ? `已授權 ${targetEmployee.name} 編輯權限` : `已取消 ${targetEmployee.name} 編輯權限`)
+      // 重新載入員工列表
+      const employees = await getAllEmployees()
+      setAllEmployees(employees)
+    } else {
+      setMessage('操作失敗')
     }
   }
 
@@ -311,19 +399,29 @@ export default function CustomerList({ employee, isAdmin = false }: CustomerList
           <h2 className="text-lg font-semibold text-gray-800">
             {isAdmin && showAllRecords ? '所有執行記錄' : '我的執行記錄'}
           </h2>
-          {isAdmin && (
-            <button
-              onClick={() => setShowAllRecords(!showAllRecords)}
-              className={`flex items-center gap-1 px-3 py-1 rounded-lg text-sm transition-colors ${
-                showAllRecords 
-                  ? 'bg-purple-100 text-purple-700' 
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              <Shield className="w-4 h-4" />
-              {showAllRecords ? '查看我的' : '查看全部'}
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <>
+                <button
+                  onClick={() => setShowPermissionModal(true)}
+                  className="flex items-center gap-1 px-3 py-1 rounded-lg text-sm bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors"
+                >
+                  <Shield className="w-4 h-4" />
+                  權限管理
+                </button>
+                <button
+                  onClick={() => setShowAllRecords(!showAllRecords)}
+                  className={`flex items-center gap-1 px-3 py-1 rounded-lg text-sm transition-colors ${
+                    showAllRecords 
+                      ? 'bg-purple-100 text-purple-700' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {showAllRecords ? '查看我的' : '查看全部'}
+                </button>
+              </>
+            )}
+          </div>
         </div>
         
         {(() => {
@@ -363,15 +461,28 @@ export default function CustomerList({ employee, isAdmin = false }: CustomerList
                         NT$ {exec.unit_fee}
                       </td>
                       <td className="py-2 px-2 text-center">
-                        {(isAdmin || exec.employee_id === employee.employee_id) && (
-                          <button
-                            onClick={() => handleDeleteExecution(exec.id)}
-                            className="p-1 text-red-500 hover:bg-red-50 rounded"
-                            title="刪除記錄"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        )}
+                        <div className="flex items-center justify-center gap-1">
+                          {/* 編輯按鈕 - 只有有權限者可見 */}
+                          {canEdit && (
+                            <button
+                              onClick={() => handleStartEdit(exec)}
+                              className="p-1 text-blue-500 hover:bg-blue-50 rounded"
+                              title="編輯記錄"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          )}
+                          {/* 刪除按鈕 */}
+                          {(canEdit || exec.employee_id === employee.employee_id) && (
+                            <button
+                              onClick={() => handleDeleteExecution(exec.id)}
+                              className="p-1 text-red-500 hover:bg-red-50 rounded"
+                              title="刪除記錄"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -449,6 +560,163 @@ export default function CustomerList({ employee, isAdmin = false }: CustomerList
                   )
                 })}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 編輯執行記錄彈窗 */}
+      {showEditModal && editingRecord && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-lg w-full max-h-[80vh] overflow-hidden">
+            <div className="p-4 border-b">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">編輯執行記錄</h3>
+                <button
+                  onClick={() => {
+                    setShowEditModal(false)
+                    setEditingRecord(null)
+                  }}
+                  className="p-1 hover:bg-gray-100 rounded"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <p className="text-sm text-gray-500 mt-1">
+                客人：{editingRecord.customer_name} | 時間：{editingRecord.appointment_time}
+              </p>
+            </div>
+            
+            <div className="p-4 space-y-4">
+              {/* 選擇執行者 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">執行者</label>
+                <select
+                  value={selectedEditEmployee}
+                  onChange={(e) => setSelectedEditEmployee(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">請選擇員工</option>
+                  {allEmployees.map((emp) => (
+                    <option key={emp.employee_id} value={emp.employee_id}>
+                      {emp.name} ({emp.position})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* 選擇療程 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">療程</label>
+                <select
+                  value={selectedEditTreatment}
+                  onChange={(e) => setSelectedEditTreatment(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">請選擇療程</option>
+                  {treatments.map((t) => (
+                    <option key={t.treatment_name} value={t.treatment_name}>
+                      {t.treatment_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* 預覽費用 */}
+              {selectedEditEmployee && selectedEditTreatment && (() => {
+                const emp = allEmployees.find(e => e.employee_id === selectedEditEmployee)
+                const treat = treatments.find(t => t.treatment_name === selectedEditTreatment)
+                if (emp && treat) {
+                  const fee = getFeeByPosition(treat, emp.position)
+                  return (
+                    <div className="p-3 bg-blue-50 rounded-lg">
+                      <p className="text-sm text-blue-700">
+                        預計操作費：<span className="font-bold">NT$ {fee}</span>
+                        <span className="text-xs text-blue-500 ml-2">({getPositionCategory(emp.position)})</span>
+                      </p>
+                    </div>
+                  )
+                }
+                return null
+              })()}
+            </div>
+            
+            <div className="p-4 border-t flex gap-3">
+              <button
+                onClick={() => {
+                  setShowEditModal(false)
+                  setEditingRecord(null)
+                }}
+                className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={saving || !selectedEditEmployee || !selectedEditTreatment}
+                className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+              >
+                {saving ? '儲存中...' : '儲存變更'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 權限管理彈窗 - 僅管理員可見 */}
+      {showPermissionModal && isAdmin && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-lg w-full max-h-[80vh] overflow-hidden">
+            <div className="p-4 border-b">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">編輯權限管理</h3>
+                <button
+                  onClick={() => setShowPermissionModal(false)}
+                  className="p-1 hover:bg-gray-100 rounded"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <p className="text-sm text-gray-500 mt-1">
+                授權員工編輯客人清單上的操作費註記
+              </p>
+            </div>
+            
+            <div className="p-4 max-h-[50vh] overflow-y-auto">
+              <div className="space-y-2">
+                {allEmployees
+                  .filter(emp => emp.role !== 'admin') // 不顯示管理員
+                  .map((emp) => (
+                    <div
+                      key={emp.employee_id}
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
+                    >
+                      <div>
+                        <p className="font-medium">{emp.name}</p>
+                        <p className="text-sm text-gray-500">{emp.position}</p>
+                      </div>
+                      <button
+                        onClick={() => handleTogglePermission(emp)}
+                        className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                          emp.can_edit_records
+                            ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {emp.can_edit_records ? '✓ 已授權' : '未授權'}
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            </div>
+            
+            <div className="p-4 border-t">
+              <button
+                onClick={() => setShowPermissionModal(false)}
+                className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+              >
+                關閉
+              </button>
             </div>
           </div>
         </div>

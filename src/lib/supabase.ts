@@ -21,6 +21,8 @@ export interface Employee {
   nickname?: string      // 兩個字的暱稱
   shortname?: string     // 縮寫（唯一）
   nickname_set_at?: string // 暱稱設定時間
+  role?: string          // 角色（admin/user）
+  can_edit_records?: boolean // 是否有編輯權限
 }
 
 // 療程費用設定類型
@@ -153,7 +155,9 @@ export async function verifyEmployee(employeeId: string): Promise<Employee | nul
       password_hash: '',
       nickname: data.nickname || null,
       shortname: data.shortname || null,
-      nickname_set_at: data.nickname_set_at || null
+      nickname_set_at: data.nickname_set_at || null,
+      role: data.role || 'user',
+      can_edit_records: data.can_edit_records || false
     } as Employee
   } catch (err) {
     console.error('Login error:', err)
@@ -438,7 +442,9 @@ export async function getEmployeeByIdWithoutLogin(employeeId: string): Promise<E
       password_hash: '',
       nickname: data.nickname || null,
       shortname: data.shortname || null,
-      nickname_set_at: data.nickname_set_at || null
+      nickname_set_at: data.nickname_set_at || null,
+      role: data.role || 'user',
+      can_edit_records: data.can_edit_records || false
     } as Employee
   } catch (err) {
     console.error('Get employee error:', err)
@@ -449,4 +455,86 @@ export async function getEmployeeByIdWithoutLogin(employeeId: string): Promise<E
 // 完成登入（記錄登入時間）
 export async function completeLogin(employee: Employee): Promise<void> {
   await recordLoginTime(employee.employee_id, employee.name)
+}
+
+// 更新執行記錄（管理員或有權限者可編輯）
+export async function updateExecutionRecord(
+  recordId: number,
+  updates: {
+    treatment_name?: string
+    employee_id?: string
+    employee_name?: string
+    employee_shortname?: string
+    employee_position?: string
+    unit_fee?: number
+  }
+): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('treatment_execution_records')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', recordId)
+    
+    if (error) {
+      console.error('更新執行記錄失敗:', error)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error('更新執行記錄錯誤:', err)
+    return false
+  }
+}
+
+// 取得所有員工列表（用於管理員選擇執行者）
+export async function getAllEmployees(): Promise<Employee[]> {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .order('name')
+    
+    if (error) {
+      console.error('查詢員工列表失敗:', error)
+      return []
+    }
+    
+    return (data || []).map(d => ({
+      id: d.id,
+      employee_id: d.employee_id,
+      name: d.name,
+      position: d.position || '諮詢師',
+      password_hash: '',
+      nickname: d.nickname || null,
+      shortname: d.shortname || null,
+      nickname_set_at: d.nickname_set_at || null,
+      role: d.role || 'user',
+      can_edit_records: d.can_edit_records || false
+    })) as Employee[]
+  } catch (err) {
+    console.error('取得員工列表錯誤:', err)
+    return []
+  }
+}
+
+// 授權/取消編輯權限
+export async function setEditPermission(employeeId: string, canEdit: boolean): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('users')
+      .update({ can_edit_records: canEdit })
+      .eq('employee_id', employeeId)
+    
+    if (error) {
+      console.error('更新編輯權限失敗:', error)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error('更新編輯權限錯誤:', err)
+    return false
+  }
 }
