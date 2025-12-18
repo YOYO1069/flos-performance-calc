@@ -697,3 +697,105 @@ export async function deleteEmployee(employeeId: string): Promise<boolean> {
     return false
   }
 }
+
+
+// 更新療程價格設定（管理員專用）
+export async function updateTreatmentPrice(
+  treatmentId: string,
+  updates: {
+    beautician_price?: number
+    nurse_price?: number
+    consultant_price?: number
+  }
+): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('treatment_fee_settings')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', treatmentId)
+    
+    if (error) {
+      console.error('更新療程價格失敗:', error)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error('更新療程價格錯誤:', err)
+    return false
+  }
+}
+
+// 新增療程項目
+export async function addTreatment(treatment: {
+  treatment_name: string
+  beautician_price: number
+  nurse_price: number
+  consultant_price: number
+  category?: string
+}): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('treatment_fee_settings')
+      .insert({
+        treatment_name: treatment.treatment_name,
+        beautician_price: treatment.beautician_price,
+        nurse_price: treatment.nurse_price,
+        consultant_price: treatment.consultant_price,
+        category: treatment.category || '一般',
+        is_active: true
+      })
+    
+    if (error) {
+      console.error('新增療程失敗:', error)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error('新增療程錯誤:', err)
+    return false
+  }
+}
+
+// 刪除療程項目（軟刪除）
+export async function deleteTreatment(treatmentId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('treatment_fee_settings')
+      .update({ is_active: false })
+      .eq('id', treatmentId)
+    
+    if (error) {
+      console.error('刪除療程失敗:', error)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error('刪除療程錯誤:', err)
+    return false
+  }
+}
+
+// 設定副管理者角色
+export async function setSubAdminRole(employeeId: string, isSubAdmin: boolean): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('users')
+      .update({ 
+        role: isSubAdmin ? 'sub_admin' : 'user',
+        can_edit_records: isSubAdmin // 副管理者自動有編輯權限
+      })
+      .eq('employee_id', employeeId)
+    
+    if (error) {
+      console.error('設定副管理者失敗:', error)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error('設定副管理者錯誤:', err)
+    return false
+  }
+}

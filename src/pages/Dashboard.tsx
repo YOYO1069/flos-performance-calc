@@ -10,7 +10,8 @@ import {
   getTreatmentFeeSettings, getFeeByPosition, getOperationRecords, 
   addOperationRecord, deleteOperationRecord, getLoginRecords, type LoginRecord,
   getEmployeeExecutionRecords, getAllExecutionRecords, deleteLoginRecord,
-  getAllEmployees, addEmployee, updateEmployee, deleteEmployee, setEditPermission
+  getAllEmployees, addEmployee, updateEmployee, deleteEmployee, setEditPermission,
+  updateTreatmentPrice, addTreatment, deleteTreatment, setSubAdminRole
 } from '../lib/supabase'
 import CustomerList from './CustomerList'
 
@@ -540,6 +541,17 @@ function MyStats({ employee }: { employee: Employee }) {
 function TreatmentSettings({ employee }: { employee: Employee }) {
   const [treatments, setTreatments] = useState<TreatmentFeeSetting[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({ beautician: 0, nurse: 0, consultant: 0 })
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [newTreatment, setNewTreatment] = useState({ name: '', beautician: 0, nurse: 0, consultant: 0 })
+
+  // 檢查是否為管理員或副管理者
+  const isAdmin = employee.employee_id === 'flosHBH012' || employee.role === 'admin'
+  const isSubAdmin = employee.role === 'sub_admin'
+  const canEditPrices = isAdmin || isSubAdmin
 
   useEffect(() => {
     loadTreatments()
@@ -558,6 +570,84 @@ function TreatmentSettings({ employee }: { employee: Employee }) {
 
   const positionCategory = getPositionCategory(employee.position)
 
+  // 開始編輯
+  const handleStartEdit = (treatment: TreatmentFeeSetting) => {
+    setEditingId(treatment.id)
+    setEditForm({
+      beautician: treatment.beautician_price,
+      nurse: treatment.nurse_price,
+      consultant: treatment.consultant_price
+    })
+  }
+
+  // 儲存編輯
+  const handleSaveEdit = async (treatmentId: string) => {
+    setSaving(true)
+    try {
+      const success = await updateTreatmentPrice(treatmentId, {
+        beautician_price: editForm.beautician,
+        nurse_price: editForm.nurse,
+        consultant_price: editForm.consultant
+      })
+      if (success) {
+        setMessage('更新成功！')
+        setEditingId(null)
+        await loadTreatments()
+      } else {
+        setMessage('更新失敗')
+      }
+    } catch (err) {
+      setMessage('更新失敗')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // 新增療程
+  const handleAddTreatment = async () => {
+    if (!newTreatment.name.trim()) {
+      setMessage('請輸入療程名稱')
+      return
+    }
+    setSaving(true)
+    try {
+      const success = await addTreatment({
+        treatment_name: newTreatment.name,
+        beautician_price: newTreatment.beautician,
+        nurse_price: newTreatment.nurse,
+        consultant_price: newTreatment.consultant
+      })
+      if (success) {
+        setMessage('新增成功！')
+        setShowAddModal(false)
+        setNewTreatment({ name: '', beautician: 0, nurse: 0, consultant: 0 })
+        await loadTreatments()
+      } else {
+        setMessage('新增失敗')
+      }
+    } catch (err) {
+      setMessage('新增失敗')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // 刪除療程
+  const handleDeleteTreatment = async (treatmentId: string, name: string) => {
+    if (!confirm(`確定要刪除療程「${name}」嗎？`)) return
+    try {
+      const success = await deleteTreatment(treatmentId)
+      if (success) {
+        setMessage('已刪除')
+        await loadTreatments()
+      } else {
+        setMessage('刪除失敗')
+      }
+    } catch (err) {
+      setMessage('刪除失敗')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -567,46 +657,204 @@ function TreatmentSettings({ employee }: { employee: Employee }) {
   }
 
   return (
-    <div className="card">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-semibold text-gray-800">療程費用設定</h2>
-        <div className="text-sm text-gray-500">
-          您的計費類別：<span className="font-medium text-blue-600">{positionCategory}</span>
+    <div className="space-y-6">
+      {/* 訊息提示 */}
+      {message && (
+        <div className={`p-3 rounded-lg text-sm ${message.includes('失敗') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+          {message}
+          <button onClick={() => setMessage('')} className="float-right">×</button>
         </div>
-      </div>
+      )}
 
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b bg-gray-50">
-              <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">療程名稱</th>
-              <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">美容師</th>
-              <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">護理師</th>
-              <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">諮詢師</th>
-            </tr>
-          </thead>
-          <tbody>
-            {treatments.map((treatment) => (
-              <tr key={treatment.id} className="border-b hover:bg-gray-50">
-                <td className="py-3 px-4 font-medium text-gray-800">{treatment.treatment_name}</td>
-                <td className={`py-3 px-4 text-right ${positionCategory === '美容師' ? 'font-bold text-blue-600' : 'text-gray-600'}`}>
-                  NT$ {treatment.beautician_price}
-                </td>
-                <td className={`py-3 px-4 text-right ${positionCategory === '護理師' ? 'font-bold text-blue-600' : 'text-gray-600'}`}>
-                  NT$ {treatment.nurse_price}
-                </td>
-                <td className={`py-3 px-4 text-right ${positionCategory === '諮詢師' ? 'font-bold text-blue-600' : 'text-gray-600'}`}>
-                  NT$ {treatment.consultant_price}
-                </td>
+      <div className="card">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-semibold text-gray-800">療程費用設定</h2>
+          <div className="flex items-center gap-4">
+            <div className="text-sm text-gray-500">
+              您的計費類別：<span className="font-medium text-blue-600">{positionCategory}</span>
+            </div>
+            {canEditPrices && (
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="flex items-center gap-1 px-3 py-1 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600"
+              >
+                <Plus className="w-4 h-4" />
+                新增療程
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b bg-gray-50">
+                <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">療程名稱</th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">美容師</th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">護理師</th>
+                <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">諮詢師</th>
+                {canEditPrices && <th className="text-center py-3 px-4 text-sm font-medium text-gray-500">操作</th>}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {treatments.map((treatment) => (
+                <tr key={treatment.id} className="border-b hover:bg-gray-50">
+                  <td className="py-3 px-4 font-medium text-gray-800">{treatment.treatment_name}</td>
+                  {editingId === treatment.id ? (
+                    <>
+                      <td className="py-3 px-4 text-right">
+                        <input
+                          type="number"
+                          value={editForm.beautician}
+                          onChange={(e) => setEditForm({...editForm, beautician: Number(e.target.value)})}
+                          className="w-24 px-2 py-1 border rounded text-right"
+                        />
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <input
+                          type="number"
+                          value={editForm.nurse}
+                          onChange={(e) => setEditForm({...editForm, nurse: Number(e.target.value)})}
+                          className="w-24 px-2 py-1 border rounded text-right"
+                        />
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <input
+                          type="number"
+                          value={editForm.consultant}
+                          onChange={(e) => setEditForm({...editForm, consultant: Number(e.target.value)})}
+                          className="w-24 px-2 py-1 border rounded text-right"
+                        />
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => handleSaveEdit(treatment.id)}
+                            disabled={saving}
+                            className="p-1 text-green-500 hover:bg-green-50 rounded"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setEditingId(null)}
+                            className="p-1 text-gray-500 hover:bg-gray-100 rounded"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td className={`py-3 px-4 text-right ${positionCategory === '美容師' ? 'font-bold text-blue-600' : 'text-gray-600'}`}>
+                        NT$ {treatment.beautician_price}
+                      </td>
+                      <td className={`py-3 px-4 text-right ${positionCategory === '護理師' ? 'font-bold text-blue-600' : 'text-gray-600'}`}>
+                        NT$ {treatment.nurse_price}
+                      </td>
+                      <td className={`py-3 px-4 text-right ${positionCategory === '諮詢師' ? 'font-bold text-blue-600' : 'text-gray-600'}`}>
+                        NT$ {treatment.consultant_price}
+                      </td>
+                      {canEditPrices && (
+                        <td className="py-3 px-4 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => handleStartEdit(treatment)}
+                              className="p-1 text-blue-500 hover:bg-blue-50 rounded"
+                              title="編輯價格"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            {isAdmin && (
+                              <button
+                                onClick={() => handleDeleteTreatment(treatment.id, treatment.treatment_name)}
+                                className="p-1 text-red-500 hover:bg-red-50 rounded"
+                                title="刪除療程"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                    </>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <p className="text-sm text-gray-500 mt-4">
+          * 藍色標示為您目前適用的費率
+          {canEditPrices && ' · 點擊編輯按鈕可修改價格'}
+        </p>
       </div>
 
-      <p className="text-sm text-gray-500 mt-4">
-        * 藍色標示為您目前適用的費率
-      </p>
+      {/* 新增療程彈窗 */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold mb-4">新增療程</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">療程名稱</label>
+                <input
+                  type="text"
+                  value={newTreatment.name}
+                  onChange={(e) => setNewTreatment({...newTreatment, name: e.target.value})}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  placeholder="請輸入療程名稱"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">美容師</label>
+                  <input
+                    type="number"
+                    value={newTreatment.beautician}
+                    onChange={(e) => setNewTreatment({...newTreatment, beautician: Number(e.target.value)})}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">護理師</label>
+                  <input
+                    type="number"
+                    value={newTreatment.nurse}
+                    onChange={(e) => setNewTreatment({...newTreatment, nurse: Number(e.target.value)})}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">諮詢師</label>
+                  <input
+                    type="number"
+                    value={newTreatment.consultant}
+                    onChange={(e) => setNewTreatment({...newTreatment, consultant: Number(e.target.value)})}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleAddTreatment}
+                disabled={saving}
+                className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+              >
+                {saving ? '儲存中...' : '確認新增'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -930,6 +1178,17 @@ function AdminLoginRecords() {
       setMessage('操作失敗')
     }
   }
+  
+  // 切換副管理者權限
+  const handleToggleSubAdminRole = async (emp: Employee) => {
+    const success = await setSubAdminRole(emp.employee_id, emp.role !== 'sub_admin')
+    if (success) {
+      setMessage(emp.role !== 'sub_admin' ? `已將 ${emp.name} 設為副管理者` : `已取消 ${emp.name} 的副管理者權限`)
+      fetchEmployees()
+    } else {
+      setMessage('操作失敗')
+    }
+  }
 
   const formatDateTime = (dateStr: string) => {
     const date = new Date(dateStr)
@@ -1245,60 +1504,95 @@ function AdminLoginRecords() {
       
       {/* 權限管理頁籤 */}
       {activeTab === 'permissions' && (
-        <div className="card">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">權限管理</h2>
-          <p className="text-sm text-gray-500 mb-4">授權員工編輯客人清單上的操作費註記，或設定管理員權限</p>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">員工</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">職稱</th>
-                  <th className="text-center py-3 px-4 text-sm font-medium text-gray-600">編輯權限</th>
-                  <th className="text-center py-3 px-4 text-sm font-medium text-gray-600">管理員權限</th>
-                </tr>
-              </thead>
-              <tbody>
-                {employees.map((emp) => (
-                  <tr key={emp.employee_id} className="border-b hover:bg-gray-50">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-gray-400" />
-                        <span className="text-sm font-medium text-gray-800">{emp.name}</span>
-                        <span className="text-xs text-gray-500">({emp.employee_id})</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-600">{emp.position}</td>
-                    <td className="py-3 px-4 text-center">
-                      <button
-                        onClick={() => handleToggleEditPermission(emp)}
-                        className={`px-3 py-1 rounded-lg text-sm transition-colors ${
-                          emp.can_edit_records || emp.role === 'admin'
-                            ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                        disabled={emp.role === 'admin'}
-                      >
-                        {emp.can_edit_records || emp.role === 'admin' ? '✓ 已授權' : '未授權'}
-                      </button>
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <button
-                        onClick={() => handleToggleAdminRole(emp)}
-                        className={`px-3 py-1 rounded-lg text-sm transition-colors ${
-                          emp.role === 'admin'
-                            ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        {emp.role === 'admin' ? '✓ 管理員' : '設為管理員'}
-                      </button>
-                    </td>
+        <div className="space-y-6">
+          {/* 權限說明 */}
+          <div className="card bg-blue-50 border-blue-200">
+            <h3 className="font-semibold text-blue-800 mb-2">權限說明</h3>
+            <div className="text-sm text-blue-700 space-y-1">
+              <p>• <strong>編輯權限</strong>：可以編輯客人清單上的療程執行記錄（修改執行者、療程項目）</p>
+              <p>• <strong>副管理者</strong>：可以編輯療程價格設定 + 自動擁有編輯權限</p>
+              <p>• <strong>管理員</strong>：完整權限，可以管理員工、設定權限、查看全體業績</p>
+            </div>
+          </div>
+
+          <div className="card">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">權限管理</h2>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">員工</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">職稱</th>
+                    <th className="text-center py-3 px-4 text-sm font-medium text-gray-600">編輯權限</th>
+                    <th className="text-center py-3 px-4 text-sm font-medium text-gray-600">副管理者</th>
+                    <th className="text-center py-3 px-4 text-sm font-medium text-gray-600">管理員</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {employees.map((emp) => {
+                    const isPureAdmin = emp.employee_id === 'flosHBH012'
+                    const isAdminRole = emp.role === 'admin'
+                    const isSubAdminRole = emp.role === 'sub_admin'
+                    
+                    return (
+                      <tr key={emp.employee_id} className="border-b hover:bg-gray-50">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <User className="w-4 h-4 text-gray-400" />
+                            <span className="text-sm font-medium text-gray-800">{emp.name}</span>
+                            <span className="text-xs text-gray-500">({emp.employee_id})</span>
+                            {isPureAdmin && (
+                              <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">主管理員</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-sm text-gray-600">{emp.position}</td>
+                        <td className="py-3 px-4 text-center">
+                          <button
+                            onClick={() => handleToggleEditPermission(emp)}
+                            className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                              emp.can_edit_records || isAdminRole || isSubAdminRole
+                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                            disabled={isPureAdmin || isAdminRole || isSubAdminRole}
+                          >
+                            {emp.can_edit_records || isAdminRole || isSubAdminRole ? '✓ 已授權' : '未授權'}
+                          </button>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <button
+                            onClick={() => handleToggleSubAdminRole(emp)}
+                            className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                              isSubAdminRole
+                                ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                            disabled={isPureAdmin || isAdminRole}
+                          >
+                            {isSubAdminRole ? '✓ 副管理者' : '設為副管理者'}
+                          </button>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <button
+                            onClick={() => handleToggleAdminRole(emp)}
+                            className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                              isAdminRole
+                                ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                            disabled={isPureAdmin}
+                          >
+                            {isAdminRole ? '✓ 管理員' : '設為管理員'}
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
