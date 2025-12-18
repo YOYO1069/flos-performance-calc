@@ -5,6 +5,12 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
+// 預約系統的 Supabase 連接 (clzjdlykhjwrlksyjlfz)
+const appointmentSupabaseUrl = 'https://clzjdlykhjwrlksyjlfz.supabase.co'
+const appointmentSupabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNsempkbHlraGp3cmxrc3lqbGZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk3OTM2ODAsImV4cCI6MjA3NTM2OTY4MH0.V6QAoh4N2aSF5CgDYfKTnY8cMQnDV3AYilj7TbpWJcU'
+
+export const appointmentSupabase = createClient(appointmentSupabaseUrl, appointmentSupabaseAnonKey)
+
 // 員工資料類型
 export interface Employee {
   id: string
@@ -224,47 +230,30 @@ export interface TreatmentExecutionRecord {
   updated_at: string
 }
 
-// 取得當日預約客人清單
+// 取得當日預約客人清單 (從預約系統的 Supabase 取得)
 export async function getDailyAppointments(date: string): Promise<Appointment[]> {
-  const { data, error } = await supabase
-    .from('bookings')
+  // 從預約系統的 flos_appointments_v2 表查詢
+  const { data, error } = await appointmentSupabase
+    .from('flos_appointments_v2')
     .select('*')
-    .eq('start_time::date', date)
-    .order('start_time')
+    .eq('taiwan_date', date)
+    .order('time_24h')
   
   if (error) {
-    // 如果 bookings 表查詢失敗，嘗試從 flos_appointments_v2 查詢
-    const { data: data2, error: error2 } = await supabase
-      .from('flos_appointments_v2')
-      .select('*')
-      .eq('taiwan_date', date)
-      .order('time_24h')
-    
-    if (error2) throw error2
-    return (data2 || []).map((item: any) => ({
-      id: item.id,
-      taiwan_date: item.taiwan_date,
-      time_24h: item.time_24h,
-      customer_name: item.customer_name,
-      treatment_item: item.treatment_item,
-      consultant: item.consultant,
-      assistant: item.assistant,
-      attending_physician: item.attending_physician,
-      appointment_status: item.appointment_status,
-      notes: item.notes
-    }))
+    console.error('查詢預約失敗:', error)
+    throw error
   }
   
   return (data || []).map((item: any) => ({
     id: item.id,
-    taiwan_date: item.start_time?.split('T')[0],
-    time_24h: item.start_time?.split('T')[1]?.substring(0, 5),
-    customer_name: item.patient_name,
-    treatment_item: item.treatment,
+    taiwan_date: item.taiwan_date,
+    time_24h: item.time_24h,
+    customer_name: item.customer_name,
+    treatment_item: item.treatment_item,
     consultant: item.consultant,
-    assistant: item.nurse,
-    attending_physician: item.doctor,
-    appointment_status: item.status,
+    assistant: item.assistant,
+    attending_physician: item.attending_physician,
+    appointment_status: item.appointment_status,
     notes: item.notes
   }))
 }
