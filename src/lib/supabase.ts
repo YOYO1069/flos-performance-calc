@@ -282,7 +282,7 @@ export async function getDailyExecutionRecords(date: string): Promise<TreatmentE
 }
 
 // 取得員工當日療程執行記錄
-export async function getEmployeeExecutionRecords(employeeId: string, date: string): Promise<TreatmentExecutionRecord[]> {
+export async function getEmployeeDailyExecutionRecords(employeeId: string, date: string): Promise<TreatmentExecutionRecord[]> {
   const { data, error } = await supabase
     .from('treatment_execution_records')
     .select('*')
@@ -316,8 +316,8 @@ export async function deleteExecutionRecord(id: number): Promise<void> {
   if (error) throw error
 }
 
-// 更新療程執行記錄
-export async function updateExecutionRecord(id: number, updates: Partial<TreatmentExecutionRecord>): Promise<TreatmentExecutionRecord> {
+// 更新療程執行記錄基本資訊
+export async function updateExecutionRecordBasic(id: number, updates: Partial<TreatmentExecutionRecord>): Promise<TreatmentExecutionRecord> {
   const { data, error } = await supabase
     .from('treatment_execution_records')
     .update({ ...updates, updated_at: new Date().toISOString() })
