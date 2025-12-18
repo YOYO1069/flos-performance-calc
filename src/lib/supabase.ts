@@ -191,3 +191,158 @@ export async function getLoginRecords(startDate?: string, endDate?: string): Pro
   if (error) throw error
   return data || []
 }
+
+
+// 預約客人類型
+export interface Appointment {
+  id: number
+  taiwan_date: string
+  time_24h: string
+  customer_name: string
+  treatment_item: string
+  consultant: string
+  assistant: string
+  attending_physician: string
+  appointment_status: string
+  notes: string
+}
+
+// 療程執行記錄類型
+export interface TreatmentExecutionRecord {
+  id: number
+  appointment_id: number | null
+  customer_name: string
+  appointment_date: string
+  appointment_time: string
+  treatment_hint: string
+  treatment_name: string
+  employee_id: string
+  employee_name: string
+  employee_position: string
+  unit_fee: number
+  created_at: string
+  updated_at: string
+}
+
+// 取得當日預約客人清單
+export async function getDailyAppointments(date: string): Promise<Appointment[]> {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('*')
+    .eq('start_time::date', date)
+    .order('start_time')
+  
+  if (error) {
+    // 如果 bookings 表查詢失敗，嘗試從 flos_appointments_v2 查詢
+    const { data: data2, error: error2 } = await supabase
+      .from('flos_appointments_v2')
+      .select('*')
+      .eq('taiwan_date', date)
+      .order('time_24h')
+    
+    if (error2) throw error2
+    return (data2 || []).map((item: any) => ({
+      id: item.id,
+      taiwan_date: item.taiwan_date,
+      time_24h: item.time_24h,
+      customer_name: item.customer_name,
+      treatment_item: item.treatment_item,
+      consultant: item.consultant,
+      assistant: item.assistant,
+      attending_physician: item.attending_physician,
+      appointment_status: item.appointment_status,
+      notes: item.notes
+    }))
+  }
+  
+  return (data || []).map((item: any) => ({
+    id: item.id,
+    taiwan_date: item.start_time?.split('T')[0],
+    time_24h: item.start_time?.split('T')[1]?.substring(0, 5),
+    customer_name: item.patient_name,
+    treatment_item: item.treatment,
+    consultant: item.consultant,
+    assistant: item.nurse,
+    attending_physician: item.doctor,
+    appointment_status: item.status,
+    notes: item.notes
+  }))
+}
+
+// 取得當日療程執行記錄
+export async function getDailyExecutionRecords(date: string): Promise<TreatmentExecutionRecord[]> {
+  const { data, error } = await supabase
+    .from('treatment_execution_records')
+    .select('*')
+    .eq('appointment_date', date)
+    .order('appointment_time')
+  
+  if (error) throw error
+  return data || []
+}
+
+// 取得員工當日療程執行記錄
+export async function getEmployeeExecutionRecords(employeeId: string, date: string): Promise<TreatmentExecutionRecord[]> {
+  const { data, error } = await supabase
+    .from('treatment_execution_records')
+    .select('*')
+    .eq('employee_id', employeeId)
+    .eq('appointment_date', date)
+    .order('appointment_time')
+  
+  if (error) throw error
+  return data || []
+}
+
+// 新增療程執行記錄
+export async function addExecutionRecord(record: Omit<TreatmentExecutionRecord, 'id' | 'created_at' | 'updated_at'>): Promise<TreatmentExecutionRecord> {
+  const { data, error } = await supabase
+    .from('treatment_execution_records')
+    .insert(record)
+    .select()
+    .single()
+  
+  if (error) throw error
+  return data
+}
+
+// 刪除療程執行記錄
+export async function deleteExecutionRecord(id: number): Promise<void> {
+  const { error } = await supabase
+    .from('treatment_execution_records')
+    .delete()
+    .eq('id', id)
+  
+  if (error) throw error
+}
+
+// 更新療程執行記錄
+export async function updateExecutionRecord(id: number, updates: Partial<TreatmentExecutionRecord>): Promise<TreatmentExecutionRecord> {
+  const { data, error } = await supabase
+    .from('treatment_execution_records')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  
+  if (error) throw error
+  return data
+}
+
+// 取得客人的所有執行記錄（用於顯示標記）
+export async function getCustomerExecutionRecords(customerName: string, date: string): Promise<TreatmentExecutionRecord[]> {
+  const { data, error } = await supabase
+    .from('treatment_execution_records')
+    .select('*')
+    .eq('customer_name', customerName)
+    .eq('appointment_date', date)
+  
+  if (error) throw error
+  return data || []
+}
+
+// 計算員工當日總費用
+export async function calculateEmployeeDailyFee(employeeId: string, date: string): Promise<number> {
+  const records = await getEmployeeExecutionRecords(employeeId, date)
+  return records.reduce((sum, record) => sum + (record.unit_fee || 0), 0)
+}

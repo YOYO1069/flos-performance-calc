@@ -3,13 +3,14 @@ import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { 
   Calculator, Settings, Calendar, BarChart3, LogOut, 
   Plus, Minus, Trash2, Save, ChevronLeft, ChevronRight,
-  User, Clock, Shield
+  User, Clock, Shield, Users
 } from 'lucide-react'
 import { 
   type Employee, type TreatmentFeeSetting, type OperationFeeRecord,
   getTreatmentFeeSettings, getFeeByPosition, getOperationRecords, 
   addOperationRecord, deleteOperationRecord, getLoginRecords, type LoginRecord
 } from '../lib/supabase'
+import CustomerList from './CustomerList'
 
 interface DashboardProps {
   employee: Employee
@@ -37,6 +38,7 @@ export default function Dashboard({ employee, onLogout }: DashboardProps) {
   const isAdmin = employee.employee_id === 'flosHBH012' || employee.position === '管理員'
 
   const tabs = [
+    { id: 'customers', label: '客人清單', icon: Users },
     { id: 'daily', label: '每日紀錄', icon: Calendar },
     { id: 'stats', label: '我的業績', icon: BarChart3 },
     { id: 'settings', label: '療程設定', icon: Settings },
@@ -113,7 +115,8 @@ export default function Dashboard({ employee, onLogout }: DashboardProps) {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6">
         <Routes>
-          <Route path="/" element={<DailyRecord employee={employee} />} />
+          <Route path="/" element={<CustomerList employee={employee} />} />
+          <Route path="/customers" element={<CustomerList employee={employee} />} />
           <Route path="/daily" element={<DailyRecord employee={employee} />} />
           <Route path="/stats" element={<MyStats employee={employee} />} />
           <Route path="/settings" element={<TreatmentSettings employee={employee} />} />
