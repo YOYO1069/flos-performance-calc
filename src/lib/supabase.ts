@@ -316,19 +316,6 @@ export async function deleteExecutionRecord(id: number): Promise<void> {
   if (error) throw error
 }
 
-// 更新療程執行記錄基本資訊
-export async function updateExecutionRecordBasic(id: number, updates: Partial<TreatmentExecutionRecord>): Promise<TreatmentExecutionRecord> {
-  const { data, error } = await supabase
-    .from('treatment_execution_records')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single()
-  
-  if (error) throw error
-  return data
-}
-
 // 取得客人的所有執行記錄（用於顯示標記）
 export async function getCustomerExecutionRecords(customerName: string, date: string): Promise<TreatmentExecutionRecord[]> {
   const { data, error } = await supabase
