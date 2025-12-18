@@ -36,10 +36,21 @@ export default function Dashboard({ employee, onLogout }: DashboardProps) {
   const location = useLocation()
   const [activeTab, setActiveTab] = useState('daily')
 
-  // 檢查是否為管理員
-  const isAdmin = employee.employee_id === 'flosHBH012' || employee.position === '管理員'
+  // 檢查是否為管理員（使用 employee_id 或 role 判斷）
+  const isAdmin = employee.employee_id === 'flosHBH012' || employee.role === 'admin'
+  
+  // 純管理員帳號（不參與操作費計算）
+  const isPureAdmin = employee.employee_id === 'flosHBH012'
 
-  const tabs = [
+  // 根據角色顯示不同的頁籤
+  const tabs = isPureAdmin ? [
+    // 純管理員只看管理功能
+    { id: 'customers', label: '客人清單', icon: Users },
+    { id: 'all-stats', label: '全體業績', icon: BarChart3 },
+    { id: 'settings', label: '療程設定', icon: Settings },
+    { id: 'admin', label: '管理中心', icon: Shield },
+  ] : [
+    // 一般員工和其他管理員
     { id: 'customers', label: '客人清單', icon: Users },
     { id: 'daily', label: '每日紀錄', icon: Calendar },
     { id: 'stats', label: '我的業績', icon: BarChart3 },
@@ -51,9 +62,11 @@ export default function Dashboard({ employee, onLogout }: DashboardProps) {
   ]
 
   useEffect(() => {
-    const path = location.pathname.split('/')[1] || 'daily'
-    setActiveTab(path)
-  }, [location])
+    const path = location.pathname.split('/')[1]
+    // 純管理員預設頁面是全體業績，一般員工預設是客人清單
+    const defaultTab = isPureAdmin ? 'all-stats' : 'customers'
+    setActiveTab(path || defaultTab)
+  }, [location, isPureAdmin])
 
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId)
@@ -78,7 +91,7 @@ export default function Dashboard({ employee, onLogout }: DashboardProps) {
             <div className="flex items-center gap-4">
               <div className="text-right">
                 <p className="text-sm font-medium text-gray-800">{employee.name}</p>
-                <p className="text-xs text-blue-600">{getPositionCategory(employee.position)}</p>
+                <p className="text-xs text-blue-600">{isPureAdmin ? '管理員' : getPositionCategory(employee.position)}</p>
               </div>
               <button
                 onClick={onLogout}
