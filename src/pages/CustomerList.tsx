@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { 
   Calendar, ChevronLeft, ChevronRight, User, Clock, 
-  Check, X, Plus, Search, RefreshCw
+  Check, X, Plus, Search, RefreshCw, Edit, Shield
 } from 'lucide-react'
 import { 
   type Employee, type TreatmentFeeSetting, type Appointment, type TreatmentExecutionRecord,
@@ -11,6 +11,7 @@ import {
 
 interface CustomerListProps {
   employee: Employee
+  isAdmin?: boolean // 管理員權限
 }
 
 // 計算職位類別
@@ -31,7 +32,7 @@ function getEmployeeShortName(name: string): string {
   return name.slice(-1) // 取最後一個字
 }
 
-export default function CustomerList({ employee }: CustomerListProps) {
+export default function CustomerList({ employee, isAdmin = false }: CustomerListProps) {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [executions, setExecutions] = useState<TreatmentExecutionRecord[]>([])
@@ -42,6 +43,7 @@ export default function CustomerList({ employee }: CustomerListProps) {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
+  const [showAllRecords, setShowAllRecords] = useState(false) // 管理員查看所有記錄
 
   useEffect(() => {
     loadData()
@@ -300,48 +302,101 @@ export default function CustomerList({ employee }: CustomerListProps) {
         )}
       </div>
 
-      {/* 我的執行記錄 */}
+      {/* 執行記錄 */}
       <div className="card">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">我的執行記錄</h2>
-        {executions.filter(e => e.employee_id === employee.employee_id).length === 0 ? (
-          <p className="text-gray-500 text-center py-4">尚無執行記錄</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2 px-2 text-sm text-gray-600">時間</th>
-                  <th className="text-left py-2 px-2 text-sm text-gray-600">客人</th>
-                  <th className="text-left py-2 px-2 text-sm text-gray-600">療程</th>
-                  <th className="text-right py-2 px-2 text-sm text-gray-600">費用</th>
-                  <th className="text-center py-2 px-2 text-sm text-gray-600">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {executions
-                  .filter(e => e.employee_id === employee.employee_id)
-                  .map((exec) => (
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-800">
+            {isAdmin && showAllRecords ? '所有執行記錄' : '我的執行記錄'}
+          </h2>
+          {isAdmin && (
+            <button
+              onClick={() => setShowAllRecords(!showAllRecords)}
+              className={`flex items-center gap-1 px-3 py-1 rounded-lg text-sm transition-colors ${
+                showAllRecords 
+                  ? 'bg-purple-100 text-purple-700' 
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <Shield className="w-4 h-4" />
+              {showAllRecords ? '查看我的' : '查看全部'}
+            </button>
+          )}
+        </div>
+        
+        {(() => {
+          const displayRecords = isAdmin && showAllRecords 
+            ? executions 
+            : executions.filter(e => e.employee_id === employee.employee_id)
+          
+          if (displayRecords.length === 0) {
+            return <p className="text-gray-500 text-center py-4">尚無執行記錄</p>
+          }
+          
+          return (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 px-2 text-sm text-gray-600">時間</th>
+                    <th className="text-left py-2 px-2 text-sm text-gray-600">客人</th>
+                    <th className="text-left py-2 px-2 text-sm text-gray-600">療程</th>
+                    {isAdmin && showAllRecords && (
+                      <th className="text-left py-2 px-2 text-sm text-gray-600">執行者</th>
+                    )}
+                    <th className="text-right py-2 px-2 text-sm text-gray-600">費用</th>
+                    <th className="text-center py-2 px-2 text-sm text-gray-600">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayRecords.map((exec) => (
                     <tr key={exec.id} className="border-b hover:bg-gray-50">
                       <td className="py-2 px-2 text-sm text-gray-600">{exec.appointment_time}</td>
                       <td className="py-2 px-2 text-sm font-medium">{exec.customer_name}</td>
                       <td className="py-2 px-2 text-sm">{exec.treatment_name}</td>
+                      {isAdmin && showAllRecords && (
+                        <td className="py-2 px-2 text-sm text-purple-600">{exec.employee_name}</td>
+                      )}
                       <td className="py-2 px-2 text-sm text-right text-blue-600 font-medium">
                         NT$ {exec.unit_fee}
                       </td>
                       <td className="py-2 px-2 text-center">
-                        <button
-                          onClick={() => handleDeleteExecution(exec.id)}
-                          className="p-1 text-red-500 hover:bg-red-50 rounded"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                        {(isAdmin || exec.employee_id === employee.employee_id) && (
+                          <button
+                            onClick={() => handleDeleteExecution(exec.id)}
+                            className="p-1 text-red-500 hover:bg-red-50 rounded"
+                            title="刪除記錄"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </tbody>
+              </table>
+              
+              {/* 管理員統計 */}
+              {isAdmin && showAllRecords && (
+                <div className="mt-4 p-3 bg-purple-50 rounded-lg">
+                  <h4 className="text-sm font-medium text-purple-800 mb-2">當日總統計</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                    {Object.entries(
+                      executions.reduce((acc, e) => {
+                        acc[e.employee_name] = (acc[e.employee_name] || 0) + (e.unit_fee || 0)
+                        return acc
+                      }, {} as Record<string, number>)
+                    ).map(([name, total]) => (
+                      <div key={name} className="bg-white p-2 rounded border">
+                        <span className="text-gray-600">{name}</span>
+                        <span className="float-right font-medium text-purple-600">NT$ {total}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })()}
       </div>
 
       {/* 療程選擇彈窗 */}

@@ -115,8 +115,8 @@ export default function Dashboard({ employee, onLogout }: DashboardProps) {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6">
         <Routes>
-          <Route path="/" element={<CustomerList employee={employee} />} />
-          <Route path="/customers" element={<CustomerList employee={employee} />} />
+          <Route path="/" element={<CustomerList employee={employee} isAdmin={isAdmin} />} />
+          <Route path="/customers" element={<CustomerList employee={employee} isAdmin={isAdmin} />} />
           <Route path="/daily" element={<DailyRecord employee={employee} />} />
           <Route path="/stats" element={<MyStats employee={employee} />} />
           <Route path="/settings" element={<TreatmentSettings employee={employee} />} />
