@@ -41,6 +41,12 @@ export default function Dashboard({ employee, onLogout }: DashboardProps) {
   
   // 純管理員帳號（不參與操作費計算）
   const isPureAdmin = employee.employee_id === 'flosHBH012'
+  
+  // 除錯資訊
+  console.log('Dashboard - employee:', employee)
+  console.log('Dashboard - employee_id:', employee.employee_id)
+  console.log('Dashboard - isAdmin:', isAdmin)
+  console.log('Dashboard - isPureAdmin:', isPureAdmin)
 
   // 根據角色顯示不同的頁籤
   const tabs = isPureAdmin ? [
