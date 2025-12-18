@@ -18,6 +18,9 @@ export interface Employee {
   name: string
   position: string
   password_hash: string
+  nickname?: string      // 兩個字的暱稱
+  shortname?: string     // 縮寫（唯一）
+  nickname_set_at?: string // 暱稱設定時間
 }
 
 // 療程費用設定類型
@@ -147,7 +150,10 @@ export async function verifyEmployee(employeeId: string): Promise<Employee | nul
       employee_id: data.employee_id,
       name: data.name,
       position: data.position || '諮詢師',
-      password_hash: ''
+      password_hash: '',
+      nickname: data.nickname || null,
+      shortname: data.shortname || null,
+      nickname_set_at: data.nickname_set_at || null
     } as Employee
   } catch (err) {
     console.error('Login error:', err)
@@ -224,6 +230,7 @@ export interface TreatmentExecutionRecord {
   treatment_name: string
   employee_id: string
   employee_name: string
+  employee_shortname?: string  // 員工縮寫（用於標記顯示）
   employee_position: string
   unit_fee: number
   created_at: string
@@ -334,4 +341,112 @@ export async function getCustomerExecutionRecords(customerName: string, date: st
 export async function calculateEmployeeDailyFee(employeeId: string, date: string): Promise<number> {
   const records = await getEmployeeExecutionRecords(employeeId, date)
   return records.reduce((sum, record) => sum + (record.unit_fee || 0), 0)
+}
+
+
+// ==================== 暱稱設定相關函數 ====================
+
+// 檢查縮寫是否已被使用
+export async function checkShortnameExists(shortname: string, excludeEmployeeId?: string): Promise<boolean> {
+  let query = supabase
+    .from('users')
+    .select('employee_id')
+    .eq('shortname', shortname)
+  
+  if (excludeEmployeeId) {
+    query = query.neq('employee_id', excludeEmployeeId)
+  }
+  
+  const { data, error } = await query
+  
+  if (error) throw error
+  return (data && data.length > 0)
+}
+
+// 設定員工暱稱和縮寫
+export async function setEmployeeNickname(
+  employeeId: string, 
+  nickname: string, 
+  shortname: string
+): Promise<{ success: boolean; error?: string }> {
+  // 驗證暱稱長度
+  if (nickname.length !== 2) {
+    return { success: false, error: '暱稱必須是兩個字' }
+  }
+  
+  // 驗證縮寫長度
+  if (shortname.length < 1 || shortname.length > 3) {
+    return { success: false, error: '縮寫必須是1-3個字' }
+  }
+  
+  // 檢查縮寫是否已被使用
+  const exists = await checkShortnameExists(shortname, employeeId)
+  if (exists) {
+    return { success: false, error: '此縮寫已被其他員工使用，請重新設定' }
+  }
+  
+  // 更新員工資料
+  const { error } = await supabase
+    .from('users')
+    .update({
+      nickname,
+      shortname,
+      nickname_set_at: new Date().toISOString()
+    })
+    .eq('employee_id', employeeId)
+  
+  if (error) {
+    console.error('設定暱稱失敗:', error)
+    return { success: false, error: '設定失敗，請稍後再試' }
+  }
+  
+  return { success: true }
+}
+
+// 驗證員工暱稱（第二階段登入）
+export async function verifyEmployeeNickname(employeeId: string, nickname: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('users')
+    .select('nickname')
+    .eq('employee_id', employeeId)
+    .single()
+  
+  if (error || !data) return false
+  return data.nickname === nickname
+}
+
+// 取得員工資料（不記錄登入）
+export async function getEmployeeByIdWithoutLogin(employeeId: string): Promise<Employee | null> {
+  const trimmedId = employeeId.trim()
+  
+  if (!trimmedId) return null
+  
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('employee_id', trimmedId)
+      .single()
+    
+    if (error || !data) return null
+    
+    return {
+      id: data.id,
+      employee_id: data.employee_id,
+      name: data.name,
+      position: data.position || '諮詢師',
+      password_hash: '',
+      nickname: data.nickname || null,
+      shortname: data.shortname || null,
+      nickname_set_at: data.nickname_set_at || null
+    } as Employee
+  } catch (err) {
+    console.error('Get employee error:', err)
+    return null
+  }
+}
+
+// 完成登入（記錄登入時間）
+export async function completeLogin(employee: Employee): Promise<void> {
+  await recordLoginTime(employee.employee_id, employee.name)
 }

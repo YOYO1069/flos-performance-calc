@@ -27,7 +27,9 @@ function getPositionCategory(position: string): string {
 }
 
 // 取得員工簡稱（用於標記）
-function getEmployeeShortName(name: string): string {
+// 如果有設定 shortname 則使用，否則用名字最後一個字
+function getEmployeeShortName(name: string, shortname?: string): string {
+  if (shortname) return shortname
   if (name.length <= 2) return name
   return name.slice(-1) // 取最後一個字
 }
@@ -75,7 +77,7 @@ export default function CustomerList({ employee, isAdmin = false }: CustomerList
     const customerExecutions = executions.filter(e => e.customer_name === customerName)
     return customerExecutions.map(e => ({
       treatment: e.treatment_name,
-      executorName: getEmployeeShortName(e.employee_name),
+      executorName: getEmployeeShortName(e.employee_name, e.employee_shortname),
       isMe: e.employee_id === employee.employee_id
     }))
   }
@@ -105,6 +107,7 @@ export default function CustomerList({ employee, isAdmin = false }: CustomerList
         treatment_name: treatment.treatment_name,
         employee_id: employee.employee_id,
         employee_name: employee.name,
+        employee_shortname: employee.shortname || employee.name.slice(-1), // 使用縮寫或名字最後一字
         employee_position: positionCategory,
         unit_fee: unitFee
       })
