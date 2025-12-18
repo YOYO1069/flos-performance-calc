@@ -771,7 +771,7 @@ export async function setSubAdminRole(employeeId: string, isSubAdmin: boolean): 
     const { error } = await supabase
       .from('users')
       .update({ 
-        role: isSubAdmin ? 'sub_admin' : 'user',
+        role: isSubAdmin ? 'senior_supervisor' : 'staff',
         can_edit_records: isSubAdmin // 副管理者自動有編輯權限
       })
       .eq('employee_id', employeeId)

@@ -44,7 +44,7 @@ export default function Dashboard({ employee, onLogout }: DashboardProps) {
   const isPureAdmin = employee.employee_id === 'flosHBH012'
   
   // 副管理者
-  const isSubAdmin = employee.role === 'sub_admin'
+  const isSubAdmin = employee.role === 'senior_supervisor'
   
   // 可以查看全體業績的人（管理員或副管理者）
   const canViewAllStats = isAdmin || isSubAdmin
@@ -561,7 +561,7 @@ function TreatmentSettings({ employee }: { employee: Employee }) {
 
   // 檢查是否為管理員或副管理者
   const isAdmin = employee.employee_id === 'flosHBH012' || employee.role === 'admin'
-  const isSubAdmin = employee.role === 'sub_admin'
+  const isSubAdmin = employee.role === 'senior_supervisor'
   const canEditPrices = isAdmin || isSubAdmin
 
   useEffect(() => {
@@ -1192,9 +1192,9 @@ function AdminLoginRecords() {
   
   // 切換副管理者權限
   const handleToggleSubAdminRole = async (emp: Employee) => {
-    const success = await setSubAdminRole(emp.employee_id, emp.role !== 'sub_admin')
+    const success = await setSubAdminRole(emp.employee_id, emp.role !== 'senior_supervisor')
     if (success) {
-      setMessage(emp.role !== 'sub_admin' ? `已將 ${emp.name} 設為副管理者` : `已取消 ${emp.name} 的副管理者權限`)
+      setMessage(emp.role !== 'senior_supervisor' ? `已將 ${emp.name} 設為副管理者` : `已取消 ${emp.name} 的副管理者權限`)
       fetchEmployees()
     } else {
       setMessage('操作失敗')
@@ -1542,7 +1542,7 @@ function AdminLoginRecords() {
                   {employees.map((emp) => {
                     const isPureAdmin = emp.employee_id === 'flosHBH012'
                     const isAdminRole = emp.role === 'admin'
-                    const isSubAdminRole = emp.role === 'sub_admin'
+                    const isSubAdminRole = emp.role === 'senior_supervisor'
                     
                     // 主管理員不顯示在權限管理列表中
                     if (isPureAdmin) return null
