@@ -470,7 +470,7 @@ function MyStats({ employee }: { employee: Employee }) {
         </div>
         <div className="card">
           <p className="text-sm text-gray-500">記錄筆數</p>
-          <p className="text-3xl font-bold text-gray-800 mt-1">{records.length}</p>
+          <p className="text-3xl font-bold text-gray-800 mt-1">{executionRecords.length}</p>
         </div>
       </div>
 
