@@ -40,14 +40,21 @@ export default function Dashboard({ employee, onLogout }: DashboardProps) {
   // 檢查是否為管理員（使用 employee_id 或 role 判斷）
   const isAdmin = employee.employee_id === 'flosHBH012' || employee.role === 'admin'
   
-  // 純管理員帳號（不參與操作費計算）
+  // 純管理員帳號（不參與操作費計算）- 只有 flosHBH012
   const isPureAdmin = employee.employee_id === 'flosHBH012'
+  
+  // 副管理者
+  const isSubAdmin = employee.role === 'sub_admin'
+  
+  // 可以查看全體業績的人（管理員或副管理者）
+  const canViewAllStats = isAdmin || isSubAdmin
   
   // 除錯資訊
   console.log('Dashboard - employee:', employee)
   console.log('Dashboard - employee_id:', employee.employee_id)
   console.log('Dashboard - isAdmin:', isAdmin)
   console.log('Dashboard - isPureAdmin:', isPureAdmin)
+  console.log('Dashboard - isSubAdmin:', isSubAdmin)
 
   // 根據角色顯示不同的頁籤
   const tabs = isPureAdmin ? [
@@ -57,13 +64,17 @@ export default function Dashboard({ employee, onLogout }: DashboardProps) {
     { id: 'settings', label: '療程設定', icon: Settings },
     { id: 'admin', label: '管理中心', icon: Shield },
   ] : [
-    // 一般員工和其他管理員
+    // 一般員工、副管理者和其他管理員
     { id: 'customers', label: '客人清單', icon: Users },
     { id: 'daily', label: '每日紀錄', icon: Calendar },
     { id: 'stats', label: '我的業績', icon: BarChart3 },
     { id: 'settings', label: '療程設定', icon: Settings },
-    ...(isAdmin ? [
+    // 副管理者和管理員都可以看全體業績
+    ...(canViewAllStats ? [
       { id: 'all-stats', label: '全體業績', icon: BarChart3 },
+    ] : []),
+    // 只有管理員可以看管理中心
+    ...(isAdmin ? [
       { id: 'admin', label: '管理中心', icon: Shield }
     ] : []),
   ]
@@ -145,7 +156,7 @@ export default function Dashboard({ employee, onLogout }: DashboardProps) {
           <Route path="/daily" element={<DailyRecord employee={employee} />} />
           <Route path="/stats" element={<MyStats employee={employee} />} />
           <Route path="/settings" element={<TreatmentSettings employee={employee} />} />
-          {isAdmin && <Route path="/all-stats" element={<AllStats />} />}
+          {(isAdmin || isSubAdmin) && <Route path="/all-stats" element={<AllStats />} />}
           {isAdmin && <Route path="/admin" element={<AdminLoginRecords />} />}
         </Routes>
       </main>
@@ -1510,8 +1521,7 @@ function AdminLoginRecords() {
             <h3 className="font-semibold text-blue-800 mb-2">權限說明</h3>
             <div className="text-sm text-blue-700 space-y-1">
               <p>• <strong>編輯權限</strong>：可以編輯客人清單上的療程執行記錄（修改執行者、療程項目）</p>
-              <p>• <strong>副管理者</strong>：可以編輯療程價格設定 + 自動擁有編輯權限</p>
-              <p>• <strong>管理員</strong>：完整權限，可以管理員工、設定權限、查看全體業績</p>
+              <p>• <strong>副管理者</strong>：可以編輯療程價格設定 + 查看全體業績 + 自動擁有編輯權限</p>
             </div>
           </div>
 
@@ -1526,7 +1536,6 @@ function AdminLoginRecords() {
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">職稱</th>
                     <th className="text-center py-3 px-4 text-sm font-medium text-gray-600">編輯權限</th>
                     <th className="text-center py-3 px-4 text-sm font-medium text-gray-600">副管理者</th>
-                    <th className="text-center py-3 px-4 text-sm font-medium text-gray-600">管理員</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1535,6 +1544,9 @@ function AdminLoginRecords() {
                     const isAdminRole = emp.role === 'admin'
                     const isSubAdminRole = emp.role === 'sub_admin'
                     
+                    // 主管理員不顯示在權限管理列表中
+                    if (isPureAdmin) return null
+                    
                     return (
                       <tr key={emp.employee_id} className="border-b hover:bg-gray-50">
                         <td className="py-3 px-4">
@@ -1542,9 +1554,6 @@ function AdminLoginRecords() {
                             <User className="w-4 h-4 text-gray-400" />
                             <span className="text-sm font-medium text-gray-800">{emp.name}</span>
                             <span className="text-xs text-gray-500">({emp.employee_id})</span>
-                            {isPureAdmin && (
-                              <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">主管理員</span>
-                            )}
                           </div>
                         </td>
                         <td className="py-3 px-4 text-sm text-gray-600">{emp.position}</td>
@@ -1569,22 +1578,8 @@ function AdminLoginRecords() {
                                 ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
                                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             }`}
-                            disabled={isPureAdmin || isAdminRole}
                           >
                             {isSubAdminRole ? '✓ 副管理者' : '設為副管理者'}
-                          </button>
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <button
-                            onClick={() => handleToggleAdminRole(emp)}
-                            className={`px-3 py-1 rounded-lg text-sm transition-colors ${
-                              isAdminRole
-                                ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}
-                            disabled={isPureAdmin}
-                          >
-                            {isAdminRole ? '✓ 管理員' : '設為管理員'}
                           </button>
                         </td>
                       </tr>
