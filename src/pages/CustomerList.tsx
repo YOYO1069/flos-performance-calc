@@ -56,6 +56,12 @@ export default function CustomerList({ employee, isAdmin = false }: CustomerList
   const [selectedEditEmployee, setSelectedEditEmployee] = useState<string>('')
   const [selectedEditTreatment, setSelectedEditTreatment] = useState<string>('')
   
+  // 批次操作相關 state
+  const [batchMode, setBatchMode] = useState(false)
+  const [selectedCustomers, setSelectedCustomers] = useState<Set<number>>(new Set())
+  const [batchTreatment, setBatchTreatment] = useState<string>('')
+  const [showBatchModal, setShowBatchModal] = useState(false)
+  
   // 檢查是否有編輯權限（管理員或被授權者）
   const canEdit = isAdmin || employee.can_edit_records
 
@@ -146,6 +152,77 @@ export default function CustomerList({ employee, isAdmin = false }: CustomerList
       setMessage('儲存失敗，請稍後再試')
     } finally {
       setSaving(false)
+    }
+  }
+
+  // 批次套用療程
+  const handleBatchApply = async () => {
+    if (selectedCustomers.size === 0 || !batchTreatment) {
+      setMessage('請選擇客人和療程')
+      return
+    }
+    
+    setSaving(true)
+    setMessage('')
+    setShowBatchModal(false)
+    
+    try {
+      const treatment = treatments.find(t => t.id === batchTreatment)
+      if (!treatment) {
+        setMessage('找不到選擇的療程')
+        return
+      }
+      
+      const unitFee = getFeeByPosition(treatment, employee.position)
+      const selectedAppointments = appointments.filter(apt => selectedCustomers.has(apt.id))
+      
+      const promises = selectedAppointments.map(apt => 
+        addExecutionRecord({
+          appointment_id: apt.id,
+          customer_name: apt.customer_name,
+          appointment_date: selectedDate,
+          appointment_time: apt.time_24h,
+          treatment_hint: apt.treatment_item || '',
+          treatment_name: treatment.treatment_name,
+          employee_id: employee.employee_id,
+          employee_name: employee.name,
+          employee_shortname: employee.shortname || employee.name.slice(-1),
+          employee_position: positionCategory,
+          unit_fee: unitFee
+        })
+      )
+      
+      await Promise.all(promises)
+      
+      setMessage(`成功為 ${selectedCustomers.size} 位客人新增「${treatment.treatment_name}」記錄！`)
+      setBatchMode(false)
+      setSelectedCustomers(new Set())
+      setBatchTreatment('')
+      
+      await loadData()
+    } catch (err) {
+      console.error('批次套用失敗:', err)
+      setMessage('批次套用失敗，請稍後再試')
+    } finally {
+      setSaving(false)
+    }
+  }
+  
+  const toggleCustomerSelection = (customerId: number) => {
+    const newSelected = new Set(selectedCustomers)
+    if (newSelected.has(customerId)) {
+      newSelected.delete(customerId)
+    } else {
+      newSelected.add(customerId)
+    }
+    setSelectedCustomers(newSelected)
+  }
+  
+  const toggleSelectAll = () => {
+    if (selectedCustomers.size === filteredAppointments.length) {
+      setSelectedCustomers(new Set())
+    } else {
+      setSelectedCustomers(new Set(filteredAppointments.map(apt => apt.id)))
     }
   }
 
@@ -327,9 +404,66 @@ export default function CustomerList({ employee, isAdmin = false }: CustomerList
 
       {/* 客人清單 */}
       <div className="card">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">
-          當日客人清單 ({filteredAppointments.length} 位)
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-800">
+            當日客人清單 ({filteredAppointments.length} 位)
+          </h2>
+          <button
+            onClick={() => {
+              setBatchMode(!batchMode)
+              setSelectedCustomers(new Set())
+              setBatchTreatment('')
+            }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              batchMode 
+                ? 'bg-red-500 text-white hover:bg-red-600' 
+                : 'bg-purple-500 text-white hover:bg-purple-600'
+            }`}
+          >
+            {batchMode ? <X className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+            {batchMode ? '取消批次' : '批次操作'}
+          </button>
+        </div>
+        
+        {/* 批次模式控制面板 */}
+        {batchMode && (
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  選擇療程
+                </label>
+                <select
+                  value={batchTreatment}
+                  onChange={(e) => setBatchTreatment(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg"
+                >
+                  <option value="">請選擇療程...</option>
+                  {treatments.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.treatment_name} (NT$ {getFeeByPosition(t, employee.position)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-end gap-2">
+                <button
+                  onClick={toggleSelectAll}
+                  className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                >
+                  {selectedCustomers.size === filteredAppointments.length ? '取消全選' : '全選'}
+                </button>
+                <button
+                  onClick={() => setShowBatchModal(true)}
+                  disabled={selectedCustomers.size === 0 || !batchTreatment}
+                  className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                  套用 ({selectedCustomers.size})
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         
         {filteredAppointments.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
@@ -343,9 +477,22 @@ export default function CustomerList({ employee, isAdmin = false }: CustomerList
               return (
                 <div
                   key={apt.id}
-                  className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                  className={`border rounded-lg p-4 transition-colors ${
+                    batchMode && selectedCustomers.has(apt.id)
+                      ? 'bg-purple-50 border-purple-300'
+                      : 'hover:bg-gray-50'
+                  }`}
                 >
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-3">
+                    {/* 批次模式多選框 */}
+                    {batchMode && (
+                      <input
+                        type="checkbox"
+                        checked={selectedCustomers.has(apt.id)}
+                        onChange={() => toggleCustomerSelection(apt.id)}
+                        className="mt-1 w-5 h-5 text-purple-600 rounded cursor-pointer"
+                      />
+                    )}
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
                         <span className="text-sm text-gray-500">{apt.time_24h}</span>
@@ -403,16 +550,18 @@ export default function CustomerList({ employee, isAdmin = false }: CustomerList
                       )}
                     </div>
                     
-                    <button
-                      onClick={() => {
-                        setSelectedCustomer(apt)
-                        setShowTreatmentModal(true)
-                      }}
-                      className="flex items-center gap-1 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                    >
-                      <Plus className="w-4 h-4" />
-                      新增療程
-                    </button>
+                    {!batchMode && (
+                      <button
+                        onClick={() => {
+                          setSelectedCustomer(apt)
+                          setShowTreatmentModal(true)
+                        }}
+                        className="flex items-center gap-1 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        新增療程
+                      </button>
+                    )}
                   </div>
                 </div>
               )
@@ -744,6 +893,53 @@ export default function CustomerList({ employee, isAdmin = false }: CustomerList
                 className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
               >
                 關閉
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 批次套用確認對話框 */}
+      {showBatchModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                確認批次套用
+              </h3>
+              <div className="space-y-3 text-sm text-gray-600">
+                <p>
+                  將為 <span className="font-semibold text-purple-600">{selectedCustomers.size}</span> 位客人新增以下療程：
+                </p>
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                  <p className="font-semibold text-purple-800">
+                    {treatments.find(t => t.id === batchTreatment)?.treatment_name}
+                  </p>
+                  <p className="text-purple-600 mt-1">
+                    單位費用：NT$ {getFeeByPosition(
+                      treatments.find(t => t.id === batchTreatment)!,
+                      employee.position
+                    )}
+                  </p>
+                </div>
+                <p className="text-gray-500">
+                  總計將新增 {selectedCustomers.size} 筆記錄
+                </p>
+              </div>
+            </div>
+            <div className="p-4 border-t flex gap-3">
+              <button
+                onClick={() => setShowBatchModal(false)}
+                className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleBatchApply}
+                disabled={saving}
+                className="flex-1 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:bg-gray-300"
+              >
+                {saving ? '處理中...' : '確認套用'}
               </button>
             </div>
           </div>
