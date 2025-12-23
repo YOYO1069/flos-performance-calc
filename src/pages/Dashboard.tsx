@@ -555,7 +555,7 @@ function TreatmentSettings({ employee }: { employee: Employee }) {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ beautician: 0, nurse: 0, consultant: 0 })
+  const [editForm, setEditForm] = useState({ name: '', beautician: 0, nurse: 0, consultant: 0 })
   const [showAddModal, setShowAddModal] = useState(false)
   const [newTreatment, setNewTreatment] = useState({ name: '', beautician: 0, nurse: 0, consultant: 0 })
 
@@ -585,6 +585,7 @@ function TreatmentSettings({ employee }: { employee: Employee }) {
   const handleStartEdit = (treatment: TreatmentFeeSetting) => {
     setEditingId(treatment.id)
     setEditForm({
+      name: treatment.treatment_name,
       beautician: treatment.beautician_price,
       nurse: treatment.nurse_price,
       consultant: treatment.consultant_price
@@ -596,6 +597,7 @@ function TreatmentSettings({ employee }: { employee: Employee }) {
     setSaving(true)
     try {
       const success = await updateTreatmentPrice(treatmentId, {
+        treatment_name: editForm.name,
         beautician_price: editForm.beautician,
         nurse_price: editForm.nurse,
         consultant_price: editForm.consultant
@@ -710,9 +712,21 @@ function TreatmentSettings({ employee }: { employee: Employee }) {
             <tbody>
               {treatments.map((treatment) => (
                 <tr key={treatment.id} className="border-b hover:bg-gray-50">
-                  <td className="py-3 px-4 font-medium text-gray-800">{treatment.treatment_name}</td>
                   {editingId === treatment.id ? (
                     <>
+                      <td className="py-3 px-4">
+                        {isAdmin ? (
+                          <input
+                            type="text"
+                            value={editForm.name}
+                            onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                            className="w-full px-2 py-1 border rounded font-medium"
+                            placeholder="療程名稱"
+                          />
+                        ) : (
+                          <span className="font-medium text-gray-800">{treatment.treatment_name}</span>
+                        )}
+                      </td>
                       <td className="py-3 px-4 text-right">
                         <input
                           type="number"
@@ -757,6 +771,7 @@ function TreatmentSettings({ employee }: { employee: Employee }) {
                     </>
                   ) : (
                     <>
+                      <td className="py-3 px-4 font-medium text-gray-800">{treatment.treatment_name}</td>
                       <td className={`py-3 px-4 text-right ${positionCategory === '美容師' ? 'font-bold text-blue-600' : 'text-gray-600'}`}>
                         NT$ {treatment.beautician_price}
                       </td>

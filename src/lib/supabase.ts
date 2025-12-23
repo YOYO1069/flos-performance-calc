@@ -690,6 +690,7 @@ export async function deleteEmployee(employeeId: string): Promise<boolean> {
 export async function updateTreatmentPrice(
   treatmentId: string,
   updates: {
+    treatment_name?: string
     beautician_price?: number
     nurse_price?: number
     consultant_price?: number
