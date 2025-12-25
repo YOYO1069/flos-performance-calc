@@ -18,7 +18,7 @@ export interface Employee {
   name: string
   position: string
   password_hash: string
-  nickname?: string      // 兩個字的暱稱
+  nickname?: string      // 暱稱
   shortname?: string     // 縮寫（唯一）
   nickname_set_at?: string // 暱稱設定時間
   role?: string          // 角色（admin/user）
@@ -361,8 +361,8 @@ export async function setEmployeeNickname(
   shortname: string
 ): Promise<{ success: boolean; error?: string }> {
   // 驗證暱稱長度
-  if (nickname.length !== 2) {
-    return { success: false, error: '暱稱必須是兩個字' }
+  if (nickname.trim().length === 0) {
+    return { success: false, error: '暱稱不能為空' }
   }
   
   // 驗證縮寫長度

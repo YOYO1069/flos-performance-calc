@@ -84,8 +84,8 @@ export default function Login({ onLogin }: LoginProps) {
     setError('')
     
     // 驗證暱稱
-    if (nickname.length !== 2) {
-      setError('暱稱必須是兩個字')
+    if (nickname.trim().length === 0) {
+      setError('暱稱不能為空')
       return
     }
     
